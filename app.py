@@ -31,9 +31,9 @@ if not math_problem:
     Chỉ trả về nội dung câu lệnh prompt bằng tiếng Anh, không giải thích thêm."""
 
     try:
-        # Đổi về gemini-3.5-flash để đảm bảo tương thích 100%
+        # Đổi về gemini-1.5-flash để đảm bảo tương thích 100%
         model = genai.GenerativeModel(
-            model_name='gemini-3.6-flash',
+            model_name='gemini-3.7-flash',
             system_instruction=system_instruction
         )
         
