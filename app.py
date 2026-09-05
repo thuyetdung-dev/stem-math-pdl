@@ -14,9 +14,13 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/generate', methods=['POST'])
-def generate():
-    data = request.get_json()
-    math_problem = data.get('text', '')
+data = request.get_json()
+# Tự động quét các tên biến thường dùng từ giao diện
+math_problem = data.get('prompt') or data.get('text') or data.get('message') or ''
+
+# Chặn lỗi từ sớm nếu vẫn không tìm thấy
+if not math_problem:
+    return jsonify({"error": "Máy chủ chưa nhận được chữ. Hãy kiểm tra biến gửi đi trong file HTML!"}), 400
 
     system_instruction = """Bạn là một chuyên gia chuyển đổi đề toán hình học không gian thành câu lệnh (prompt) tạo ảnh 3D bằng tiếng Anh. 
     QUY TẮC QUAN TRỌNG VỀ TỶ LỆ KÍCH THƯỚC:
