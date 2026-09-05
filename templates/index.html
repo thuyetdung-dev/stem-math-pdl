@@ -75,19 +75,18 @@
             log.style.display = "none";
 
             try {
-                // Gửi dữ liệu về backend Python
+                // Đã đồng bộ biến "text" để gửi lên máy chủ
                 const response = await fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ math_problem: mathInput })
+                    body: JSON.stringify({ text: mathInput })
                 });
 
                 const data = await response.json();
 
-                if(data.success) {
-                    // Hiển thị ảnh
+                // Đã sửa điều kiện hiển thị ảnh
+                if(data.image_url) {
                     output.innerHTML = `<img src="${data.image_url}" alt="Generated Image">`;
-                    // Hiển thị prompt mà AI đã dịch ra
                     log.style.display = "block";
                     log.innerHTML = `<b>Prompt AI đã sinh ra:</b><br>${data.prompt}`;
                 } else {
