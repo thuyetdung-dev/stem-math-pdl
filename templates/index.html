@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Math Illustrator</title>
+    <style>
+        :root {
+            --primary-green: #2e7d32;
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --text-main: #333;
+            --text-muted: #666;
+            --border-color: #e0e0e0;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; color: var(--text-main); }
+        .header { display: flex; align-items: center; margin-bottom: 20px; }
+        .header-icon { background-color: #4caf50; color: white; padding: 10px; border-radius: 8px; margin-right: 15px; font-size: 24px; }
+        .header-title h1 { margin: 0; font-size: 22px; color: #1a1a1a; }
+        .header-title p { margin: 0; font-size: 14px; color: var(--primary-green); font-weight: 600; }
+        .container { display: flex; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .panel { background: var(--panel-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; }
+        .left-panel { flex: 0 0 400px; display: flex; flex-direction: column; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; }
+        .section-title { font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; text-transform: uppercase; }
+        textarea { width: 100%; height: 150px; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; font-family: inherit; font-size: 14px; resize: none; box-sizing: border-box; margin-bottom: 20px; }
+        .btn-generate { background-color: #1a237e; color: white; border: none; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; display: flex; justify-content: center; gap: 10px; }
+        .image-container { flex: 1; border: 1px solid var(--border-color); border-radius: 8px; background-color: #f9f9f9; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; overflow: hidden; min-height: 400px; padding: 10px; }
+        .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .log-box { margin-top: 15px; padding: 10px; background: #e3f2fd; color: #0d47a1; font-size: 12px; border-radius: 6px; text-align: left; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-icon">✨</div>
+        <div class="header-title">
+            <h1>AI Math Illustrator</h1>
+            <p>TRANG WEB TẠO GIÁO CỤ TRỰC QUAN</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel left-panel">
+            <div class="section-title"><span>📖 1. NHẬP ĐỀ TOÁN VÀO ĐÂY</span></div>
+            <textarea id="math-input">Bể 2m, 3m, 2m chứa đầy nước. Bạn Đạt lấy nước ra bởi cái gáo hình trụ cao 15cm, bán kính 10cm. Múc ra 30 gáo mỗi ngày.</textarea>
+            
+            <button class="btn-generate" onclick="generateImage()" id="gen-btn">
+                🪄 Tạo hình minh họa ngay
+            </button>
+            <div id="log" class="log-box"></div>
+        </div>
+
+        <div class="panel right-panel">
+            <div class="section-title"><span>HÌNH MINH HỌA TRỰC QUAN</span></div>
+            <div class="image-container" id="image-output">
+                <p style="color: #999;">Nhấn nút bên trái để AI bắt đầu vẽ...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function generateImage() {
+            const mathInput = document.getElementById('math-input').value;
+            const output = document.getElementById('image-output');
+            const btn = document.getElementById('gen-btn');
+            const log = document.getElementById('log');
+
+            if(!mathInput.trim()) return alert("Vui lòng nhập đề toán!");
+
+            btn.innerHTML = "⏳ Đang xử lý... (vui lòng đợi)";
+            btn.style.backgroundColor = "#5c6bc0";
+            btn.disabled = true;
+            output.innerHTML = '<p style="color: #666; font-size:18px;">🤖 Máy chủ AI đang đọc đề và vẽ hình...<br><br><small>Quá trình này có thể mất 5 - 10 giây</small></p>';
+            log.style.display = "none";
+
+            try {
+                // Gửi dữ liệu về backend Python
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ math_problem: mathInput })
+                });
+
+                const data = await response.json();
+
+                if(data.success) {
+                    // Hiển thị ảnh
+                    output.innerHTML = `<img src="${data.image_url}" alt="Generated Image">`;
+                    // Hiển thị prompt mà AI đã dịch ra
+                    log.style.display = "block";
+                    log.innerHTML = `<b>Prompt AI đã sinh ra:</b><br>${data.prompt}`;
+                } else {
+                    output.innerHTML = `<p style="color: red;">❌ Lỗi: ${data.error}</p>`;
+                }
+            } catch (err) {
+                output.innerHTML = `<p style="color: red;">❌ Lỗi kết nối mạng.</p>`;
+            }
+
+            btn.innerHTML = "🪄 Tạo hình minh họa ngay";
+            btn.style.backgroundColor = "#1a237e";
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
