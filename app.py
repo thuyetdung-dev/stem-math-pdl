@@ -14,7 +14,7 @@ client = genai.Client(api_key=api_key)
 def index():
     return render_template('index.html')
 
-@app.route('/generate', methods=['POST'])
+@app.route('/api/generate', methods=['POST'])
 def generate():
     data = request.get_json()
     math_problem = data.get('text', '')
