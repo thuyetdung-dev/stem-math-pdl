@@ -3,9 +3,9 @@ import urllib.parse
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
-app = Flask(__name__)
+# Sửa lỗi 3: Bổ sung template_folder='.' để Flask quét file index.html ở thư mục gốc
+app = Flask(__name__, template_folder='.')
 
-# Lấy API Key từ Vercel
 api_key = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
@@ -14,13 +14,13 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/generate', methods=['POST'])
-data = request.get_json()
-# Tự động quét các tên biến thường dùng từ giao diện
-math_problem = data.get('prompt') or data.get('text') or data.get('message') or ''
+def generate(): # Sửa lỗi 1: Bổ sung định nghĩa hàm cho route này
+    # Toàn bộ khối lệnh bên dưới đã được thụt lề (indent) đúng chuẩn Python
+    data = request.get_json()
+    math_problem = data.get('prompt') or data.get('text') or data.get('message') or ''
 
-# Chặn lỗi từ sớm nếu vẫn không tìm thấy
-if not math_problem:
-    return jsonify({"error": "Máy chủ chưa nhận được chữ. Hãy kiểm tra biến gửi đi trong file HTML!"}), 400
+    if not math_problem:
+        return jsonify({"error": "Máy chủ chưa nhận được chữ. Hãy kiểm tra biến gửi đi trong file HTML!"}), 400
 
     system_instruction = """Bạn là một chuyên gia chuyển đổi đề toán hình học không gian thành câu lệnh (prompt) tạo ảnh 3D bằng tiếng Anh. 
     QUY TẮC QUAN TRỌNG VỀ TỶ LỆ KÍCH THƯỚC:
@@ -31,9 +31,9 @@ if not math_problem:
     Chỉ trả về nội dung câu lệnh prompt bằng tiếng Anh, không giải thích thêm."""
 
     try:
-        # Đổi về gemini-1.5-flash để đảm bảo tương thích 100%
+        # Sửa lỗi 2: Chuyển sang model khả dụng gemini-1.5-flash
         model = genai.GenerativeModel(
-            model_name='gemini-3.7-flash',
+            model_name='gemini-1.5-flash',
             system_instruction=system_instruction
         )
         
@@ -45,7 +45,6 @@ if not math_problem:
         
         return jsonify({"prompt": prompt, "image_url": image_url})
     except Exception as e:
-        # Lệnh này sẽ in thẳng dòng lỗi đỏ chót ra Vercel Logs để dễ bắt bệnh
         print(f"LỖI HỆ THỐNG GEMINI: {str(e)}") 
         return jsonify({"error": str(e)}), 500
 
