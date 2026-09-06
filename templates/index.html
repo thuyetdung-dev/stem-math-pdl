@@ -28,6 +28,13 @@
         .image-container { flex: 1; border: 1px solid var(--border-color); border-radius: 8px; background-color: #f9f9f9; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; overflow: hidden; min-height: 400px; padding: 10px; }
         .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .log-box { margin-top: 15px; padding: 10px; background: #e3f2fd; color: #0d47a1; font-size: 12px; border-radius: 6px; text-align: left; display: none; }
+        
+        /* Cập nhật giao diện Module API */
+        .settings-panel { background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .input-field { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-family: inherit; margin-bottom: 5px; }
+        .flex-row { display: flex; gap: 10px; align-items: center; }
+        .select-field { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; font-size: 14px; }
+        .btn-scan { padding: 10px 15px; background: white; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; font-weight: bold; color: #333; display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 <body>
@@ -42,6 +49,28 @@
 
     <div class="container">
         <div class="panel left-panel">
+            
+            <!-- MODULE TÙY CHỌN NÂNG CAO -->
+            <div class="settings-panel">
+                <div class="section-title"><span>⚙️ TÙY CHỌN NÂNG CAO (API KEY)</span></div>
+                
+                <div style="margin-bottom: 12px;">
+                    <input type="password" id="user-api-key" class="input-field" placeholder="Nhập API Key của bạn (tùy chọn)...">
+                    <small style="color: #666; font-size: 11px;">* Nếu để trống, hệ thống sẽ dùng API Key mặc định của máy chủ.</small>
+                </div>
+
+                <div class="flex-row">
+                    <select id="ai-model-select" class="select-field">
+                        <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest (Mặc định)</option>
+                    </select>
+                    <button type="button" id="btn-scan-models" class="btn-scan" onclick="scanModels()">
+                        🔄 Dò lại
+                    </button>
+                </div>
+                <div id="scan-log" style="font-size: 12px; margin-top: 8px; display: none;"></div>
+            </div>
+
+            <!-- NHẬP ĐỀ TOÁN -->
             <div class="section-title"><span>📖 1. NHẬP ĐỀ TOÁN VÀO ĐÂY</span></div>
             <textarea id="math-input">Bể 2m, 3m, 2m chứa đầy nước. Bạn Đạt lấy nước ra bởi cái gáo hình trụ cao 15cm, bán kính 10cm. Múc ra 30 gáo mỗi ngày.</textarea>
             
@@ -60,8 +89,60 @@
     </div>
 
     <script>
+        async function scanModels() {
+            const apiKey = document.getElementById('user-api-key').value.trim();
+            const modelSelect = document.getElementById('ai-model-select');
+            const scanLog = document.getElementById('scan-log');
+            const scanBtn = document.getElementById('btn-scan-models');
+
+            scanBtn.innerHTML = "⏳ Đang dò...";
+            scanBtn.disabled = true;
+            scanLog.style.display = "block";
+            scanLog.style.color = "#000";
+            scanLog.innerText = "Đang kết nối tới máy chủ Google...";
+
+            try {
+                const response = await fetch('/api/scan-models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+
+                const data = await response.json();
+
+                if (data.models) {
+                    modelSelect.innerHTML = '';
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        
+                        // Tự động ưu tiên chọn mô hình "flash" thay vì "pro" để xử lý cho nhanh
+                        if(model.includes("gemini-1.5-flash") && !model.includes("8b")) {
+                            option.selected = true;
+                        }
+                        modelSelect.appendChild(option);
+                    });
+                    scanLog.style.color = "green";
+                    scanLog.innerText = `✔️ Đã tìm thấy ${data.models.length} mô hình khả dụng.`;
+                } else {
+                    scanLog.style.color = "red";
+                    scanLog.innerText = `❌ Lỗi: ${data.error}`;
+                }
+            } catch (err) {
+                scanLog.style.color = "red";
+                scanLog.innerText = "❌ Lỗi kết nối mạng khi tải danh sách mô hình.";
+            }
+
+            scanBtn.innerHTML = "🔄 Dò lại";
+            scanBtn.disabled = false;
+        }
+
         async function generateImage() {
             const mathInput = document.getElementById('math-input').value;
+            const apiKey = document.getElementById('user-api-key').value.trim();
+            const selectedModel = document.getElementById('ai-model-select').value;
+            
             const output = document.getElementById('image-output');
             const btn = document.getElementById('gen-btn');
             const log = document.getElementById('log');
@@ -75,16 +156,18 @@
             log.style.display = "none";
 
             try {
-                // Đã đồng bộ biến "text" để gửi lên máy chủ
                 const response = await fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: mathInput })
+                    body: JSON.stringify({ 
+                        text: mathInput,
+                        api_key: apiKey,
+                        model: selectedModel
+                    })
                 });
 
                 const data = await response.json();
 
-                // Đã sửa điều kiện hiển thị ảnh
                 if(data.image_url) {
                     output.innerHTML = `<img src="${data.image_url}" alt="Generated Image">`;
                     log.style.display = "block";
