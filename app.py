@@ -52,17 +52,16 @@ def generate():
     try:
         genai.configure(api_key=active_key)
 
-        system_instruction = """Bạn là một chuyên gia chuyển đổi đề toán thành câu lệnh (prompt) tạo ảnh bằng tiếng Anh.
-        QUY TẮC ĐỂ TẠO ẢNH GIỐNG SÁCH GIÁO KHOA (NHƯ ẢNH MẪU):
-        1. Phong cách đồ họa: BẮT BUỘC thêm cụm từ "2D educational children's book illustration, bright colorful anime style, clear line art, flat colors". Tuyệt đối KHÔNG dùng "3D, photorealistic, render".
-        2. Bối cảnh & Nhân vật: Luôn mô tả một nhân vật (ví dụ: "a cute young schoolboy") đang tương tác thực tế với vật thể trong một bối cảnh (ví dụ: "outdoor garden background with plants").
-        3. Khung trích xuất chi tiết (Callout): Để thể hiện vật nhỏ cạnh vật lớn, hãy dùng cụm từ "a magnified circular inset showing a close-up of the small [tên vật thể]".
-        4. Ký hiệu toán học: Thêm từ khóa "math educational diagram, drawing measurement arrows, mathematical annotations". (Lưu ý: Không ép AI viết tiếng Việt vì AI vẽ chữ rất kém, chỉ cần vẽ bối cảnh và mũi tên).
-        
-        Ví dụ đề: "Bể 2m x 3m chứa nước, múc bằng gáo trụ 15cm"
-        Prompt chuẩn: "2D educational children's book illustration, bright colorful anime style. A cute young schoolboy standing in a garden, holding a tiny cylindrical wooden ladle to scoop water from a massive rectangular water tank. There is a magnified circular inset showing a detailed close-up of the wooden ladle. Math educational diagram, drawing measurement arrows, mathematical annotations, clear line art, cheerful atmosphere."
-        
-        Chỉ trả về nội dung prompt tiếng Anh, tuyệt đối không giải thích thêm."""
+        system_instruction = """Bạn là chuyên gia chuyển đổi bài toán thực tế thành câu lệnh prompt tạo ảnh minh họa sách giáo khoa bằng tiếng Anh.
+QUY TẮC BỐ CỤC BẮT BUỘC:
+1. Chia bố cục rõ ràng:
+   - On the left: Một hình khối hình học lớn (ví dụ: massive transparent rectangular prism water tank filled with water, concrete edges, isometric perspective).
+   - On the right: Một cậu bé đứng hoàn toàn bên ngoài trên mặt đất (schoolboy standing outside on the ground next to the tank, holding a tiny wooden ladle). Tuyệt đối không để người ở bên trong khối nước.
+2. Phong cách vẽ: Bắt buộc dùng "Vietnamese textbook math illustration style, clear 2D technical line art, flat cartoon vector colors, educational infographic layout, outdoor yard setting".
+3. Ký hiệu đo lường: Thêm "with measurement arrows and dimension lines along the edges, technical educational diagram".
+4. Không đưa con số đo lường chi tiết vào prompt để tránh chữ bị méo mó vô nghĩa. Chỉ tập trung vào hình khối, tỷ lệ lớn/nhỏ và vị trí nhân vật.
+
+Chỉ trả về duy nhất chuỗi prompt bằng tiếng Anh, không thêm văn bản giải thích."""
 
         model = genai.GenerativeModel(
             model_name=selected_model,
@@ -85,7 +84,8 @@ def generate():
         prompt = response.text.strip()
         
         encoded_prompt = urllib.parse.quote(prompt)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=800&height=400&nologo=true"
+        # Nâng cấp lên model=flux để dựng hình khối và nhân vật sắc nét, đúng bố cục
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=576&model=flux&nologo=true"
         
         return jsonify({"prompt": prompt, "image_url": image_url})
     except Exception as e:
