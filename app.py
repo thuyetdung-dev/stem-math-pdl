@@ -3,10 +3,12 @@ import urllib.parse
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
+# Dòng khai báo này bắt buộc phải có và sát lề trái
 app = Flask(__name__)
 
 @app.route('/')
 def index():
+    # ... (phần code bên dưới giữ nguyên)
     # Flask sẽ tự động tìm file index.html trong thư mục "templates"
     return render_template('index.html')
 
