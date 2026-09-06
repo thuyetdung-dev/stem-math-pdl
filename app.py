@@ -3,13 +3,10 @@ import urllib.parse
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
-# Dòng khai báo này bắt buộc phải có và sát lề trái
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    # ... (phần code bên dưới giữ nguyên)
-    # Flask sẽ tự động tìm file index.html trong thư mục "templates"
     return render_template('index.html')
 
 @app.route('/api/scan-models', methods=['POST'])
@@ -17,18 +14,15 @@ def scan_models():
     data = request.get_json()
     user_api_key = data.get('api_key')
     
-    # Dùng API Key của user nếu có, ngược lại dùng key mặc định của máy chủ Vercel
     active_key = user_api_key if (user_api_key and user_api_key.strip() != "") else os.environ.get("GEMINI_API_KEY")
 
     if not active_key:
         return jsonify({"error": "Không tìm thấy API Key nào để kết nối!"}), 400
 
     try:
-        # Cấu hình API Key để dò
         genai.configure(api_key=active_key)
         
         available_models = []
-        # Quét và lọc các mô hình hỗ trợ sinh văn bản
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 clean_name = m.name.replace('models/', '')
@@ -48,26 +42,25 @@ def generate():
     if not math_problem:
         return jsonify({"error": "Máy chủ chưa nhận được chữ. Hãy nhập đề toán!"}), 400
 
-    # Dùng API Key của user nếu có, ngược lại dùng key mặc định
     active_key = user_api_key if (user_api_key and user_api_key.strip() != "") else os.environ.get("GEMINI_API_KEY")
     
     if not active_key:
         return jsonify({"error": "Không có API Key hợp lệ. Hãy kiểm tra biến môi trường hoặc nhập key thủ công!"}), 400
         
     try:
-        # Cấu hình API Key để bắt đầu tạo ảnh
         genai.configure(api_key=active_key)
-system_instruction = """Bạn là một chuyên gia chuyển đổi đề toán hình học không gian thành câu lệnh (prompt) tạo ảnh 3D bằng tiếng Anh.
-    QUY TẮC TỐI QUAN TRỌNG ĐỂ AI VẼ ĐÚNG:
-    1. LOẠI BỎ HOÀN TOÀN CON SỐ: Tuyệt đối không đưa các số đo (2m, 3m, 15cm...) vào prompt vì AI vẽ ảnh không hiểu kích thước thực.
-    2. Dùng tính từ thay thế: Biến số đo lớn thành "massive", "giant" và số đo nhỏ thành "tiny", "miniature".
-    3. Tên hình khối chuẩn: Dùng "rectangular prism" (hình hộp chữ nhật), "cylinder" (hình trụ), "sphere" (hình cầu).
-    4. Phong cách ép buộc: Bắt buộc chèn cụm từ này vào cuối mỗi prompt: "minimalist 3D geometric diagram, pure white background, clear size comparison, educational STEM illustration, isometric view, soft studio lighting, matte plastic materials".
-    
-    Ví dụ đề: "Bể 2m x 3m chứa nước, múc bằng gáo trụ 15cm"
-    Prompt chuẩn: "A massive transparent rectangular prism water tank filled with blue water. Next to it on the ground is an extremely tiny cylindrical ladle. Minimalist 3D geometric diagram, pure white background, clear size comparison, educational STEM illustration, isometric view, soft studio lighting, matte plastic materials."
-    
-    Chỉ trả về nội dung prompt tiếng Anh, tuyệt đối không giải thích thêm."""
+
+        system_instruction = """Bạn là một chuyên gia chuyển đổi đề toán hình học không gian thành câu lệnh (prompt) tạo ảnh 3D bằng tiếng Anh.
+        QUY TẮC TỐI QUAN TRỌNG ĐỂ AI VẼ ĐÚNG:
+        1. LOẠI BỎ HOÀN TOÀN CON SỐ: Tuyệt đối không đưa các số đo (2m, 3m, 15cm...) vào prompt vì AI vẽ ảnh không hiểu kích thước thực.
+        2. Dùng tính từ thay thế: Biến số đo lớn thành "massive", "giant" và số đo nhỏ thành "tiny", "miniature".
+        3. Tên hình khối chuẩn: Dùng "rectangular prism" (hình hộp chữ nhật), "cylinder" (hình trụ), "sphere" (hình cầu).
+        4. Phong cách ép buộc: Bắt buộc chèn cụm từ này vào cuối mỗi prompt: "minimalist 3D geometric diagram, pure white background, clear size comparison, educational STEM illustration, isometric view, soft studio lighting, matte plastic materials".
+        
+        Ví dụ đề: "Bể 2m x 3m chứa nước, múc bằng gáo trụ 15cm"
+        Prompt chuẩn: "A massive transparent rectangular prism water tank filled with blue water. Next to it on the ground is an extremely tiny cylindrical ladle. Minimalist 3D geometric diagram, pure white background, clear size comparison, educational STEM illustration, isometric view, soft studio lighting, matte plastic materials."
+        
+        Chỉ trả về nội dung prompt tiếng Anh, tuyệt đối không giải thích thêm."""
 
         model = genai.GenerativeModel(
             model_name=selected_model,
