@@ -30,9 +30,9 @@ def generate():
     4. Góc máy: Thêm các cụm từ "wide-angle shot, clear size comparison, educational STEM visualization".
     Chỉ trả về nội dung câu lệnh prompt bằng tiếng Anh, không giải thích thêm."""
 
-    try:
+   try:
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-1.5-flash-latest', # Thay đổi tại dòng này
             system_instruction=system_instruction
         )
         
