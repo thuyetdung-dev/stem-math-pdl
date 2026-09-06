@@ -58,17 +58,13 @@ def generate():
         2. Bối cảnh & Nhân vật: Luôn mô tả một nhân vật (ví dụ: "a cute young schoolboy") đang tương tác thực tế với vật thể trong một bối cảnh (ví dụ: "outdoor garden background with plants").
         3. Khung trích xuất chi tiết (Callout): Để thể hiện vật nhỏ cạnh vật lớn, hãy dùng cụm từ "a magnified circular inset showing a close-up of the small [tên vật thể]".
         4. Ký hiệu toán học: Thêm từ khóa "math educational diagram, drawing measurement arrows, mathematical annotations". (Lưu ý: Không ép AI viết tiếng Việt vì AI vẽ chữ rất kém, chỉ cần vẽ bối cảnh và mũi tên).
-        
         Ví dụ đề: "Bể 2m x 3m chứa nước, múc bằng gáo trụ 15cm"
         Prompt chuẩn: "2D educational children's book illustration, bright colorful anime style. A cute young schoolboy standing in a garden, holding a tiny cylindrical wooden ladle to scoop water from a massive rectangular water tank. There is a magnified circular inset showing a detailed close-up of the wooden ladle. Math educational diagram, drawing measurement arrows, mathematical annotations, clear line art, cheerful atmosphere."
-        
         Chỉ trả về nội dung prompt tiếng Anh, tuyệt đối không giải thích thêm."""
-
         model = genai.GenerativeModel(
             model_name=selected_model,
             system_instruction=system_instruction
         )
-        
         prompt_contents = []
         if math_problem:
             prompt_contents.append(math_problem)
