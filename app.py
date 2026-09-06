@@ -3,19 +3,19 @@ import urllib.parse
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
-# Sửa lỗi 3: Bổ sung template_folder='.' để Flask quét file index.html ở thư mục gốc
-app = Flask(__name__, template_folder='.')
+app = Flask(__name__)
 
 api_key = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=api_key)
+if api_key:
+    genai.configure(api_key=api_key)
 
 @app.route('/')
 def index():
+    # Flask sẽ tự động tìm file index.html trong thư mục "templates"
     return render_template('index.html')
 
 @app.route('/api/generate', methods=['POST'])
-def generate(): # Sửa lỗi 1: Bổ sung định nghĩa hàm cho route này
-    # Toàn bộ khối lệnh bên dưới đã được thụt lề (indent) đúng chuẩn Python
+def generate():
     data = request.get_json()
     math_problem = data.get('prompt') or data.get('text') or data.get('message') or ''
 
@@ -31,7 +31,6 @@ def generate(): # Sửa lỗi 1: Bổ sung định nghĩa hàm cho route này
     Chỉ trả về nội dung câu lệnh prompt bằng tiếng Anh, không giải thích thêm."""
 
     try:
-        # Sửa lỗi 2: Chuyển sang model khả dụng gemini-1.5-flash
         model = genai.GenerativeModel(
             model_name='gemini-1.5-flash',
             system_instruction=system_instruction
