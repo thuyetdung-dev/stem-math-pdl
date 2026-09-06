@@ -310,65 +310,144 @@ SHAPES = {
 
 
 # ---------------------------------------------------------------------------
+# Biến thể trình bày
+# ---------------------------------------------------------------------------
+
+PALETTES = {
+    "color": dict(C),
+    "print": {  # bản đen trắng, in photocopy vẫn rõ
+        **dict(C),
+        "water": "#d9dee0", "water_dark": "#b9c2c5", "water_top": "#eef1f2",
+        "wood": "#d5d0c6", "wood_dark": "#b3ada1", "metal": "#dcdfdd",
+        "sky": "#ffffff", "ground": "#f0efeb", "leaf": "#dcdfda", "leaf_dark": "#c6cbc4",
+        "skin": "#dedbd4", "hair": "#3a3a38", "shirt": "#eceeec", "shorts": "#c8ccca",
+        "banner": "#f4f2ec",
+    },
+}
+
+# Danh sách phương án dùng cho nút "Vẽ lại", xoay vòng theo thứ tự.
+VARIANTS = [
+    {"theme": "yard", "angle": 30, "mirror": False},
+    {"theme": "yard", "angle": 30, "mirror": True},
+    {"theme": "blank", "angle": 30, "mirror": False},
+    {"theme": "yard", "angle": 20, "mirror": False},
+    {"theme": "classroom", "angle": 34, "mirror": False},
+    {"theme": "blank", "angle": 42, "mirror": True},
+    {"theme": "blank", "angle": 30, "mirror": False, "palette": "print"},
+    {"theme": "yard", "angle": 26, "mirror": True, "decor": False},
+]
+
+GROUND_Y = 556
+
+
+def apply_style(style):
+    """Đổi bảng màu và góc nhìn isometric trước khi vẽ."""
+    palette = PALETTES.get(style.get("palette", "color"), PALETTES["color"])
+    C.clear()
+    C.update(palette)
+    angle = float(style.get("angle", 30) or 30)
+    angle = min(50.0, max(12.0, angle))
+    globals()["COS30"] = math.cos(math.radians(angle))
+    globals()["SIN30"] = math.sin(math.radians(angle))
+
+
+# ---------------------------------------------------------------------------
 # Nhân vật và bối cảnh
 # ---------------------------------------------------------------------------
 
-def schoolboy(cx, ground_y, scale=1.0, holding=True, hold_type="ladle"):
+def limb(x1, y1, x2, y2, width):
+    """Tay hoặc chân: một nét viền sẫm nằm dưới một nét màu da."""
+    return (f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{C["line"]}" '
+            f'stroke-width="{width + 4:.1f}" stroke-linecap="round"/>'
+            f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{C["skin"]}" '
+            f'stroke-width="{width:.1f}" stroke-linecap="round"/>')
+
+
+def schoolboy(cx, ground_y, scale=1.0, holding=True, hold_type="ladle",
+              gender="boy", facing=1):
+    """Nhân vật vector phẳng. facing = 1 quay sang phải, -1 quay sang trái."""
     s = scale
+    f = 1 if facing >= 0 else -1
     hip = ground_y - 118 * s
     shoulder = ground_y - 210 * s
     head_y = ground_y - 246 * s
     parts = [
         f'<ellipse cx="{cx:.1f}" cy="{ground_y:.1f}" rx="{46 * s:.1f}" ry="{9 * s:.1f}" fill="{C["ink"]}" fill-opacity=".13"/>',
-        # chân
-        f'<path d="M{cx - 17 * s:.1f},{hip:.1f} L{cx - 21 * s:.1f},{ground_y - 6 * s:.1f}" stroke="{C["skin"]}" '
-        f'stroke-width="{20 * s:.1f}" stroke-linecap="round"/>',
-        f'<path d="M{cx + 17 * s:.1f},{hip:.1f} L{cx + 22 * s:.1f},{ground_y - 6 * s:.1f}" stroke="{C["skin"]}" '
-        f'stroke-width="{20 * s:.1f}" stroke-linecap="round"/>',
-        f'<rect x="{cx - 34 * s:.1f}" y="{ground_y - 10 * s:.1f}" width="{28 * s:.1f}" height="{10 * s:.1f}" rx="{5 * s:.1f}" fill="{C["shorts"]}"/>',
-        f'<rect x="{cx + 8 * s:.1f}" y="{ground_y - 10 * s:.1f}" width="{28 * s:.1f}" height="{10 * s:.1f}" rx="{5 * s:.1f}" fill="{C["shorts"]}"/>',
-        # quần
-        f'<path d="M{cx - 30 * s:.1f},{hip - 18 * s:.1f} L{cx + 30 * s:.1f},{hip - 18 * s:.1f} '
-        f'L{cx + 27 * s:.1f},{hip + 18 * s:.1f} L{cx + 4 * s:.1f},{hip + 18 * s:.1f} L{cx:.1f},{hip - 12 * s:.1f} '
-        f'L{cx - 4 * s:.1f},{hip + 18 * s:.1f} L{cx - 27 * s:.1f},{hip + 18 * s:.1f} Z" fill="{C["shorts"]}" '
-        f'stroke="{C["line"]}" stroke-width="{2 * s:.1f}" stroke-linejoin="round"/>',
-        # áo
-        f'<path d="M{cx - 32 * s:.1f},{shoulder + 6 * s:.1f} Q{cx:.1f},{shoulder - 12 * s:.1f} {cx + 32 * s:.1f},{shoulder + 6 * s:.1f} '
-        f'L{cx + 31 * s:.1f},{hip - 12 * s:.1f} L{cx - 31 * s:.1f},{hip - 12 * s:.1f} Z" fill="{C["shirt"]}" '
-        f'stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}" stroke-linejoin="round"/>',
-        # tay trái buông
-        f'<path d="M{cx - 30 * s:.1f},{shoulder + 16 * s:.1f} L{cx - 38 * s:.1f},{shoulder + 84 * s:.1f}" '
-        f'stroke="{C["skin"]}" stroke-width="{16 * s:.1f}" stroke-linecap="round"/>',
-        # đầu
-        f'<circle cx="{cx:.1f}" cy="{head_y:.1f}" r="{34 * s:.1f}" fill="{C["skin"]}" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}"/>',
-        f'<path d="M{cx - 35 * s:.1f},{head_y - 8 * s:.1f} Q{cx - 24 * s:.1f},{head_y - 42 * s:.1f} {cx + 2 * s:.1f},{head_y - 36 * s:.1f} '
-        f'Q{cx + 30 * s:.1f},{head_y - 32 * s:.1f} {cx + 35 * s:.1f},{head_y - 6 * s:.1f} '
-        f'Q{cx + 16 * s:.1f},{head_y - 22 * s:.1f} {cx - 12 * s:.1f},{head_y - 14 * s:.1f} Z" fill="{C["hair"]}"/>',
+        limb(cx - 17 * s, hip, cx - 21 * s, ground_y - 6 * s, 20 * s),
+        limb(cx + 17 * s, hip, cx + 22 * s, ground_y - 6 * s, 20 * s),
+        f'<rect x="{cx - 34 * s:.1f}" y="{ground_y - 10 * s:.1f}" width="{28 * s:.1f}" height="{10 * s:.1f}" '
+        f'rx="{5 * s:.1f}" fill="{C["shorts"]}"/>',
+        f'<rect x="{cx + 8 * s:.1f}" y="{ground_y - 10 * s:.1f}" width="{28 * s:.1f}" height="{10 * s:.1f}" '
+        f'rx="{5 * s:.1f}" fill="{C["shorts"]}"/>',
+    ]
+
+    if gender == "girl":  # váy chữ A
+        parts.append(
+            f'<path d="M{cx - 26 * s:.1f},{hip - 22 * s:.1f} L{cx + 26 * s:.1f},{hip - 22 * s:.1f} '
+            f'L{cx + 38 * s:.1f},{hip + 26 * s:.1f} L{cx - 38 * s:.1f},{hip + 26 * s:.1f} Z" '
+            f'fill="{C["shorts"]}" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}" stroke-linejoin="round"/>')
+    else:
+        parts.append(
+            f'<path d="M{cx - 30 * s:.1f},{hip - 18 * s:.1f} L{cx + 30 * s:.1f},{hip - 18 * s:.1f} '
+            f'L{cx + 27 * s:.1f},{hip + 18 * s:.1f} L{cx + 4 * s:.1f},{hip + 18 * s:.1f} '
+            f'L{cx:.1f},{hip - 12 * s:.1f} L{cx - 4 * s:.1f},{hip + 18 * s:.1f} '
+            f'L{cx - 27 * s:.1f},{hip + 18 * s:.1f} Z" fill="{C["shorts"]}" stroke="{C["line"]}" '
+            f'stroke-width="{2 * s:.1f}" stroke-linejoin="round"/>')
+
+    parts += [
+        f'<path d="M{cx - 32 * s:.1f},{shoulder + 6 * s:.1f} Q{cx:.1f},{shoulder - 12 * s:.1f} '
+        f'{cx + 32 * s:.1f},{shoulder + 6 * s:.1f} L{cx + 31 * s:.1f},{hip - 12 * s:.1f} '
+        f'L{cx - 31 * s:.1f},{hip - 12 * s:.1f} Z" fill="{C["shirt"]}" stroke="{C["line"]}" '
+        f'stroke-width="{2.2 * s:.1f}" stroke-linejoin="round"/>',
+        limb(cx - 30 * f * s, shoulder + 16 * s, cx - 38 * f * s, shoulder + 84 * s, 16 * s),
+        f'<circle cx="{cx:.1f}" cy="{head_y:.1f}" r="{34 * s:.1f}" fill="{C["skin"]}" stroke="{C["line"]}" '
+        f'stroke-width="{2.2 * s:.1f}"/>',
+    ]
+
+    if gender == "girl":
+        parts.append(
+            f'<path d="M{cx - 36 * s:.1f},{head_y - 2 * s:.1f} Q{cx - 26 * s:.1f},{head_y - 44 * s:.1f} '
+            f'{cx:.1f},{head_y - 38 * s:.1f} Q{cx + 28 * s:.1f},{head_y - 34 * s:.1f} '
+            f'{cx + 36 * s:.1f},{head_y - 2 * s:.1f} Q{cx + 16 * s:.1f},{head_y - 22 * s:.1f} '
+            f'{cx - 14 * s:.1f},{head_y - 14 * s:.1f} Z" fill="{C["hair"]}"/>')
+        parts.append(
+            f'<ellipse cx="{cx - 44 * f * s:.1f}" cy="{head_y + 14 * s:.1f}" rx="{13 * s:.1f}" '
+            f'ry="{24 * s:.1f}" fill="{C["hair"]}"/>')
+    else:
+        parts.append(
+            f'<path d="M{cx - 35 * s:.1f},{head_y - 8 * s:.1f} Q{cx - 24 * s:.1f},{head_y - 42 * s:.1f} '
+            f'{cx + 2 * s:.1f},{head_y - 36 * s:.1f} Q{cx + 30 * s:.1f},{head_y - 32 * s:.1f} '
+            f'{cx + 35 * s:.1f},{head_y - 6 * s:.1f} Q{cx + 16 * s:.1f},{head_y - 22 * s:.1f} '
+            f'{cx - 12 * s:.1f},{head_y - 14 * s:.1f} Z" fill="{C["hair"]}"/>')
+
+    parts += [
         f'<circle cx="{cx - 12 * s:.1f}" cy="{head_y + 2 * s:.1f}" r="{3.6 * s:.1f}" fill="{C["ink"]}"/>',
         f'<circle cx="{cx + 12 * s:.1f}" cy="{head_y + 2 * s:.1f}" r="{3.6 * s:.1f}" fill="{C["ink"]}"/>',
-        f'<path d="M{cx - 8 * s:.1f},{head_y + 16 * s:.1f} Q{cx:.1f},{head_y + 24 * s:.1f} {cx + 8 * s:.1f},{head_y + 16 * s:.1f}" '
-        f'fill="none" stroke="{C["ink"]}" stroke-width="{2.4 * s:.1f}" stroke-linecap="round"/>',
+        f'<path d="M{cx - 8 * s:.1f},{head_y + 16 * s:.1f} Q{cx:.1f},{head_y + 24 * s:.1f} '
+        f'{cx + 8 * s:.1f},{head_y + 16 * s:.1f}" fill="none" stroke="{C["ink"]}" '
+        f'stroke-width="{2.4 * s:.1f}" stroke-linecap="round"/>',
     ]
+
     if holding:
-        # tay phải vươn ra cầm gáo
-        parts.append(
-            f'<path d="M{cx + 30 * s:.1f},{shoulder + 16 * s:.1f} L{cx + 74 * s:.1f},{shoulder + 54 * s:.1f}" '
-            f'stroke="{C["skin"]}" stroke-width="{16 * s:.1f}" stroke-linecap="round"/>')
+        parts.append(limb(cx + 30 * f * s, shoulder + 16 * s, cx + 74 * f * s, shoulder + 54 * s, 16 * s))
         if hold_type == "ladle":
             parts.append(
-                f'<line x1="{cx + 66 * s:.1f}" y1="{shoulder + 50 * s:.1f}" x2="{cx + 116 * s:.1f}" y2="{shoulder + 96 * s:.1f}" '
-                f'stroke="{C["wood_dark"]}" stroke-width="{7 * s:.1f}" stroke-linecap="round"/>')
-        if hold_type == "ladle":
+                f'<line x1="{cx + 66 * f * s:.1f}" y1="{shoulder + 50 * s:.1f}" '
+                f'x2="{cx + 116 * f * s:.1f}" y2="{shoulder + 96 * s:.1f}" stroke="{C["wood_dark"]}" '
+                f'stroke-width="{7 * s:.1f}" stroke-linecap="round"/>')
+            cup = cx + 121 * f * s
             parts.append(
-                f'<path d="M{cx + 104 * s:.1f},{shoulder + 92 * s:.1f} l{34 * s:.1f},0 l{-5 * s:.1f},{26 * s:.1f} '
-                f'l{-24 * s:.1f},0 Z" fill="{C["wood"]}" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}" stroke-linejoin="round"/>')
+                f'<path d="M{cup - 17 * s:.1f},{shoulder + 92 * s:.1f} l{34 * s:.1f},0 l{-5 * s:.1f},{26 * s:.1f} '
+                f'l{-24 * s:.1f},0 Z" fill="{C["wood"]}" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}" '
+                f'stroke-linejoin="round"/>')
             parts.append(
-                f'<ellipse cx="{cx + 121 * s:.1f}" cy="{shoulder + 92 * s:.1f}" rx="{17 * s:.1f}" ry="{5 * s:.1f}" '
+                f'<ellipse cx="{cup:.1f}" cy="{shoulder + 92 * s:.1f}" rx="{17 * s:.1f}" ry="{5 * s:.1f}" '
                 f'fill="{C["water_top"]}" stroke="{C["line"]}" stroke-width="{2 * s:.1f}"/>')
         else:
             parts.append(
-                f'<rect x="{cx + 62 * s:.1f}" y="{shoulder + 40 * s:.1f}" width="{44 * s:.1f}" height="{27 * s:.1f}" '
-                f'rx="{4 * s:.1f}" fill="{C["water"]}" fill-opacity=".8" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}"/>')
+                f'<rect x="{cx + (62 if f > 0 else -106) * s:.1f}" y="{shoulder + 40 * s:.1f}" '
+                f'width="{44 * s:.1f}" height="{27 * s:.1f}" rx="{4 * s:.1f}" fill="{C["water"]}" '
+                f'fill-opacity=".8" stroke="{C["line"]}" stroke-width="{2.2 * s:.1f}"/>')
     return "".join(parts)
 
 
@@ -388,13 +467,6 @@ def potted_plant(x, ground_y, s=1.0):
     ])
 
 
-# ---------------------------------------------------------------------------
-# Ghép toàn cảnh
-# ---------------------------------------------------------------------------
-
-GROUND_Y = 556
-
-
 def defs():
     return f'''<defs>
 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -406,22 +478,43 @@ def defs():
 <radialGradient id="ball" cx="35%" cy="30%">
   <stop offset="0" stop-color="{C['water_top']}"/><stop offset="1" stop-color="{C['water_dark']}"/>
 </radialGradient>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+  <path d="M40,0 L0,0 L0,40" fill="none" stroke="{C['rule'] if 'rule' in C else '#dfe5e1'}" stroke-width="1"/>
+</pattern>
 </defs>'''
 
 
-def background():
-    return "".join([
+def background(theme="yard", decor=True):
+    if theme == "blank":  # nền giấy kẻ ô, hợp để in vào đề kiểm tra
+        return "".join([
+            f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
+            f'<rect width="{W}" height="{H}" fill="url(#grid)" opacity=".55"/>',
+            f'<line x1="0" y1="{GROUND_Y}" x2="{W}" y2="{GROUND_Y}" stroke="{C["line"]}" '
+            f'stroke-width="2" stroke-opacity=".45"/>',
+        ])
+
+    if theme == "classroom":
+        return "".join([
+            f'<rect width="{W}" height="{H}" fill="#f3f6f8"/>',
+            f'<rect x="0" y="{GROUND_Y}" width="{W}" height="{H - GROUND_Y}" fill="#e3d9c8"/>',
+            f'<line x1="0" y1="{GROUND_Y}" x2="{W}" y2="{GROUND_Y}" stroke="{C["line"]}" stroke-width="2" stroke-opacity=".4"/>',
+            f'<rect x="0" y="{GROUND_Y - 16}" width="{W}" height="16" fill="#cfd8d2" fill-opacity=".7"/>',
+        ])
+
+    parts = [
         f'<rect width="{W}" height="{H}" fill="url(#sky)"/>',
         f'<rect x="0" y="{GROUND_Y}" width="{W}" height="{H - GROUND_Y}" fill="{C["ground"]}"/>',
         f'<line x1="0" y1="{GROUND_Y}" x2="{W}" y2="{GROUND_Y}" stroke="{C["line"]}" stroke-width="2" stroke-opacity=".35"/>',
-        bush(66, GROUND_Y - 30, 44, True), bush(1164, GROUND_Y - 26, 34, True),
-        potted_plant(158, GROUND_Y, 0.8), potted_plant(1234, GROUND_Y, 0.9),
-    ])
+    ]
+    if decor:
+        parts += [bush(66, GROUND_Y - 30, 44, True), bush(1164, GROUND_Y - 26, 34, True),
+                  potted_plant(158, GROUND_Y, 0.8), potted_plant(1234, GROUND_Y, 0.9)]
+    return "".join(parts)
 
 
 def callout(cx, cy, r, inner_svg, from_pt):
     return "".join([
-        f'<line x1="{from_pt[0]:.1f}" y1="{from_pt[1]:.1f}" x2="{cx - r * 0.72:.1f}" y2="{cy + r * 0.72:.1f}" '
+        f'<line x1="{from_pt[0]:.1f}" y1="{from_pt[1]:.1f}" x2="{cx:.1f}" y2="{cy + r * 0.9:.1f}" '
         f'stroke="{C["line"]}" stroke-width="2" stroke-dasharray="7 5"/>',
         f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{C["paper"]}" fill-opacity=".97" '
         f'stroke="{C["line"]}" stroke-width="3"/>',
@@ -433,9 +526,8 @@ def banner(cx, cy, text):
     if not text:
         return ""
     w = max(240, len(str(text)) * 21 + 90)
-    h = 56
+    h, tail = 56, 26
     x, y = cx - w / 2, cy - h / 2
-    tail = 26
     return "".join([
         f'<path d="M{x:.1f},{y:.1f} H{x + w:.1f} L{x + w + tail:.1f},{y + h / 2:.1f} L{x + w:.1f},{y + h:.1f} '
         f'H{x:.1f} L{x - tail:.1f},{y + h / 2:.1f} Z" fill="{C["banner"]}" stroke="{C["line"]}" '
@@ -444,19 +536,25 @@ def banner(cx, cy, text):
     ])
 
 
-def render_scene(spec):
-    """spec: dict do Gemini trả về. Trả về chuỗi SVG hoàn chỉnh."""
+# ---------------------------------------------------------------------------
+# Ghép toàn cảnh
+# ---------------------------------------------------------------------------
+
+def _compose(spec, style):
     figures = spec.get("figures") or []
     main = figures[0] if figures else {"type": "box", "dims": {}}
     sub = figures[1] if len(figures) > 1 else None
+    char = spec.get("character") or {}
+
+    mirror = bool(style.get("mirror"))
+    mx_ = lambda x: (W - x) if mirror else x   # lật trái phải toàn bộ bố cục
 
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">',
-             defs(), background()]
+             defs(), background(style.get("theme", "yard"), style.get("decor", True))]
 
-    # Bố cục co giãn: có nhân vật thì khối chính lùi sang trái, không thì đặt giữa khung.
-    char = spec.get("character") or {}
     has_side = bool(sub) or char.get("enabled", True)
-    mx, mw, mh = (366, 450, 292) if has_side else (600, 620, 340)
+    base_x, mw, mh = (366, 450, 292) if has_side else (600, 620, 340)
+    mx = mx_(base_x)
 
     drawer = SHAPES.get(str(main.get("type", "box")).lower(), draw_box)
     try:
@@ -466,35 +564,57 @@ def render_scene(spec):
     if main.get("label"):
         parts.append(label(mx, 104 if has_side else 74, main["label"], size=26, weight=700))
 
-    # nhân vật bên phải, đứng trên mặt đất
+    sub_type = str((sub or {}).get("type", "")).lower()
     if char.get("enabled", True):
-        sub_type = str((sub or {}).get("type", "")).lower()
-        parts.append(schoolboy(792, GROUND_Y, 1.0, holding=bool(sub),
-                               hold_type="ladle" if sub_type in ("cylinder", "cone") else "object"))
+        parts.append(schoolboy(mx_(792), GROUND_Y, 1.0, holding=bool(sub),
+                               hold_type="ladle" if sub_type in ("cylinder", "cone") else "object",
+                               gender=style.get("character", char.get("gender", "boy")),
+                               facing=-1 if mirror else 1))
         if char.get("caption"):
-            parts.append(label(792, GROUND_Y + 42, char["caption"], size=24, weight=600))
+            parts.append(label(mx_(792), GROUND_Y + 42, char["caption"], size=24, weight=600))
 
-    # vật thể phụ trong khung phóng to
     if sub:
-        sub_drawer = SHAPES.get(str(sub.get("type", "cylinder")).lower(), draw_cylinder)
+        sub_drawer = SHAPES.get(sub_type, draw_cylinder)
         kwargs = {"cutaway": True} if sub_drawer is draw_cylinder else {}
         if sub_drawer in (draw_box, draw_prism, draw_pyramid):
             kwargs["compact"] = True
-        inner = sub_drawer(sub.get("dims") or {}, 1064, 200, 84, 96, **kwargs)
-        parts.append(callout(1086, 200, 130, inner, (912, 396)))
+        inner = sub_drawer(sub.get("dims") or {}, mx_(1064), 200, 84, 96, **kwargs)
+        parts.append(callout(mx_(1086), 200, 130, inner, (mx_(912), 396)))
         if sub.get("label"):
-            parts.append(label(1086, 360, sub["label"], size=23, weight=600))
+            parts.append(label(mx_(1086), 360, sub["label"], size=23, weight=600))
 
-    # số lần lặp lại
     badge = spec.get("badge") or {}
     if badge.get("text"):
-        parts.append(label(1086, 442, badge["text"], size=60, weight=800))
+        parts.append(label(mx_(1086), 442, badge["text"], size=60, weight=800))
     if badge.get("caption"):
-        parts.append(label(1086, 492, badge["caption"], size=24, weight=600))
+        parts.append(label(mx_(1086), 492, badge["caption"], size=24, weight=600))
 
     if spec.get("note"):
-        parts.append(label(700 if has_side else 1104, 160, spec["note"], size=28, weight=700))
+        parts.append(label(mx_(700) if has_side else mx_(1104), 160, spec["note"], size=28, weight=700))
 
     parts.append(banner(640, 676, spec.get("question")))
     parts.append("</svg>")
     return "".join(parts)
+
+
+def render_scene(spec):
+    """spec: dict do Gemini trả về, kèm khoá tuỳ chọn "style".
+
+    style: {"theme": yard|classroom|blank, "palette": color|print,
+            "angle": 12..50, "mirror": bool, "decor": bool, "character": boy|girl}
+    """
+    style = spec.get("style") or {}
+    saved_palette = dict(C)
+    saved_angle = (COS30, SIN30)
+    try:
+        apply_style(style)
+        return _compose(spec, style)
+    finally:
+        C.clear()
+        C.update(saved_palette)
+        globals()["COS30"], globals()["SIN30"] = saved_angle
+
+
+def variant(index):
+    """Trả về style cho lần vẽ lại thứ index."""
+    return dict(VARIANTS[index % len(VARIANTS)])

@@ -69,6 +69,11 @@
   .tag.banner{background:#fbeec8;border:2px solid var(--ink);border-radius:6px;padding:4px 20px;font-size:clamp(13px,2vw,26px)}
 
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .chip{background:#f4f6f4;border:1px solid var(--rule);color:#4a5a52;font-size:.82rem;font-weight:600;padding:6px 11px;border-radius:14px}
+  .chip[aria-pressed=true]{background:var(--slate);border-color:var(--slate);color:#fff}
+  .revise{display:flex;gap:8px;margin-top:10px}
+  .revise input{flex:1}
   .hint{font-size:.81rem;color:#6b7a72;margin-top:9px}
   .status{margin-top:11px;font-size:.86rem;padding:9px 11px;border-radius:6px;display:none}
   .status.err{display:block;background:#fbeeeb;border:1px solid #e7c3ba;color:var(--danger)}
@@ -132,11 +137,29 @@
         <div class="empty" id="emptyMsg">Hình sẽ hiện ở đây. Chế độ “Hình vẽ chuẩn xác” dựng khối hình bằng toán học nên tỉ lệ và chữ số luôn đúng.</div>
       </div>
       <div class="toolbar">
+        <button class="btn-ghost" id="redrawBtn" disabled>Vẽ lại kiểu khác</button>
         <button class="btn-ghost" id="editBtn" disabled>Sửa số đo</button>
+        <button class="btn-ghost" id="undoBtn" disabled>Hoàn tác</button>
         <button class="btn-ghost" id="savePngBtn" disabled>Lưu ảnh PNG</button>
         <button class="btn-ghost" id="saveSvgBtn" disabled>Tải file SVG</button>
         <button class="btn-ghost" id="rerollBtn" disabled hidden>Vẽ lại bố cục khác</button>
       </div>
+
+      <div class="chips" id="chips" hidden>
+        <button class="chip" data-style="mirror">Đổi bên</button>
+        <button class="chip" data-style="theme:blank">Nền giấy kẻ ô</button>
+        <button class="chip" data-style="palette:print">In đen trắng</button>
+        <button class="chip" data-style="character:girl">Bạn nữ</button>
+        <button class="chip" data-style="decor">Bỏ cây cối</button>
+        <button class="chip" data-style="angle">Đổi góc nhìn</button>
+        <button class="chip" data-style="reset">Về mặc định</button>
+      </div>
+
+      <div class="revise" id="revise" hidden>
+        <input type="text" id="reviseText" placeholder="Nói rõ cần sửa gì: bỏ cây cối, chiều cao phải là 1,5m, bỏ nhân vật…">
+        <button class="btn-ghost" id="reviseBtn">Sửa theo mô tả</button>
+      </div>
+
       <p class="hint" id="hint">Sai số đo hay sai tên khối? Bấm “Sửa số đo” để chỉnh trực tiếp, hình dựng lại ngay mà không tốn thêm lượt gọi Gemini.</p>
 
       <div class="editor" id="editor"></div>
@@ -160,6 +183,9 @@ const SLOTS = {
 const CANVAS_FONT = {dim:30, badge:74, small:26, note:34, banner:40};
 
 let mode = 'svg';
+let variantIndex = 0;
+let styleOverride = {};
+let history = [];
 let state = {spec:null, svg:'', imageUrl:'', tags:[], uploadB64:null};
 
 const setStatus = (msg, kind) => {
@@ -175,9 +201,12 @@ function setMode(next){
   $('modeSvg').setAttribute('aria-pressed', next === 'svg');
   $('modeAi').setAttribute('aria-pressed', next === 'ai');
   $('rerollBtn').hidden = next !== 'ai';
+  $('redrawBtn').hidden = next !== 'svg';
   $('editBtn').hidden = next !== 'svg';
+  $('chips').hidden = next !== 'svg' || !state.spec;
+  $('revise').hidden = next !== 'svg' || !state.spec;
   $('hint').textContent = next === 'svg'
-    ? 'Sai số đo hay sai tên khối? Bấm “Sửa số đo” để chỉnh trực tiếp, hình dựng lại ngay mà không tốn thêm lượt gọi Gemini.'
+    ? 'Chưa ưng thì bấm “Vẽ lại kiểu khác” để xoay vòng qua các phương án trình bày, hoặc dùng hàng nút bên dưới. Mọi thao tác này không tốn thêm lượt gọi Gemini.'
     : 'Ảnh AI không vẽ chữ số vì dễ méo. Số đo được dán đè lên ảnh — kéo từng nhãn cho khớp mũi tên rồi lưu.';
 }
 $('modeSvg').onclick = () => setMode('svg');
@@ -291,14 +320,93 @@ function buildEditor(){
     timer = setTimeout(rerender, 350);
   };
 }
-async function rerender(){
+/* ---------- vẽ lại ---------- */
+const snapshot = () => {
+  history.push(JSON.stringify(state.spec));
+  if (history.length > 20) history.shift();
+  $('undoBtn').disabled = history.length < 2;
+};
+
+async function draw(opts = {}){
   try{
     const r = await fetch('/api/rerender', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({spec: state.spec})});
+      body: JSON.stringify({spec: state.spec, variant_index: variantIndex,
+                            style_override: styleOverride, ...opts})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
+    state.spec = d.spec;
     showSvg(d.svg);
+    return d;
   }catch(err){ setStatus(err.message, 'err'); }
+}
+
+$('redrawBtn').onclick = async () => {
+  snapshot();
+  variantIndex += 1;
+  const d = await draw();
+  if (d) setStatus(`Phương án ${variantIndex % d.variant_count + 1}/${d.variant_count}. Bấm tiếp để xem kiểu khác.`, 'ok');
+};
+
+$('chips').onclick = async e => {
+  const btn = e.target.closest('.chip'); if (!btn || !state.spec) return;
+  const [key, value] = btn.dataset.style.split(':');
+  snapshot();
+
+  if (key === 'reset'){
+    styleOverride = {}; variantIndex = 0;
+    $('chips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+  } else if (key === 'angle'){
+    const steps = [30, 20, 38, 46];
+    const next = steps[(steps.indexOf(styleOverride.angle ?? 30) + 1) % steps.length];
+    styleOverride.angle = next;
+    btn.setAttribute('aria-pressed', next !== 30);
+  } else if (value){                       // khoá có giá trị: bật tắt qua lại
+    const on = styleOverride[key] === value;
+    if (on) delete styleOverride[key]; else styleOverride[key] = value;
+    btn.setAttribute('aria-pressed', !on);
+  } else {                                  // khoá đúng/sai
+    const on = key === 'decor' ? styleOverride.decor === false : styleOverride[key] === true;
+    if (key === 'decor') { if (on) delete styleOverride.decor; else styleOverride.decor = false; }
+    else { if (on) delete styleOverride[key]; else styleOverride[key] = true; }
+    btn.setAttribute('aria-pressed', !on);
+  }
+  await draw();
+};
+
+$('undoBtn').onclick = async () => {
+  if (history.length < 2) return;
+  history.pop();
+  state.spec = JSON.parse(history[history.length - 1]);
+  await draw({variant_index: null, style_override: null});
+  $('undoBtn').disabled = history.length < 2;
+  if ($('editor').classList.contains('on')) buildEditor();
+};
+
+$('reviseBtn').onclick = async () => {
+  const instruction = $('reviseText').value.trim();
+  if (!instruction) return setStatus('Hãy mô tả điều bạn muốn sửa.', 'err');
+  const btn = $('reviseBtn');
+  btn.disabled = true; btn.textContent = 'Đang sửa';
+  setStatus('Gemini đang áp dụng yêu cầu của bạn…', 'ok');
+  try{
+    const r = await fetch('/api/revise', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({spec: state.spec, instruction, api_key: $('apiKey').value,
+                            model: $('modelSel').value})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    snapshot();
+    state.spec = d.spec;
+    showSvg(d.svg);
+    $('reviseText').value = '';
+    if ($('editor').classList.contains('on')) buildEditor();
+    setStatus('Đã sửa xong. Chưa ưng thì bấm Hoàn tác.', 'ok');
+  }catch(err){ setStatus(err.message, 'err'); }
+  finally{ btn.disabled = false; btn.textContent = 'Sửa theo mô tả'; }
+};
+
+async function rerender(){
+  snapshot();
+  await draw();
 }
 $('editBtn').onclick = () => {
   const box = $('editor');
@@ -323,11 +431,14 @@ async function generate(newSeed){
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     state.spec = d.spec;
+    variantIndex = 0; styleOverride = {}; history = [];
+    $('chips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+    snapshot();
 
     if (d.mode === 'svg'){
       showSvg(d.svg);
       state.tags = [];
-      setStatus('Xong. Kiểm tra số đo, cần sửa thì bấm “Sửa số đo”.', 'ok');
+      setStatus('Xong. Chưa ưng thì bấm “Vẽ lại kiểu khác”.', 'ok');
     } else {
       btn.innerHTML = '<span class="spinner"></span>Đang vẽ ảnh';
       setStatus('Đang dựng ảnh AI, mất khoảng 15–40 giây…', 'ok');
@@ -343,9 +454,13 @@ async function generate(newSeed){
       renderTags();
       setStatus('Xong. Kéo các nhãn số đo cho khớp mũi tên rồi lưu ảnh.', 'ok');
     }
-    ['editBtn','savePngBtn','saveSvgBtn','rerollBtn'].forEach(id => $(id).disabled = false);
+    ['editBtn','savePngBtn','saveSvgBtn','rerollBtn','redrawBtn'].forEach(id => $(id).disabled = false);
     $('saveSvgBtn').disabled = d.mode !== 'svg';
     $('editBtn').disabled = d.mode !== 'svg';
+    $('redrawBtn').disabled = d.mode !== 'svg';
+    $('undoBtn').disabled = true;
+    $('chips').hidden = d.mode !== 'svg';
+    $('revise').hidden = d.mode !== 'svg';
   }catch(err){ setStatus(err.message, 'err'); }
   finally{ btn.disabled = false; btn.textContent = 'Tạo hình minh họa'; }
 }
@@ -355,9 +470,12 @@ $('rerollBtn').onclick = () => generate(Math.floor(Math.random() * 9999999) + 1)
 $('clearBtn').onclick = () => {
   $('problem').value = ''; showUpload(null); setStatus('');
   state = {spec:null, svg:'', imageUrl:'', tags:[], uploadB64:null};
+  variantIndex = 0; styleOverride = {}; history = [];
+  $('chips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+  $('chips').hidden = true; $('revise').hidden = true; $('reviseText').value = '';
   stage.innerHTML = '<div class="empty">Hình sẽ hiện ở đây.</div>';
   $('editor').classList.remove('on'); $('editor').innerHTML = '';
-  ['editBtn','savePngBtn','saveSvgBtn','rerollBtn'].forEach(id => $(id).disabled = true);
+  ['editBtn','savePngBtn','saveSvgBtn','rerollBtn','redrawBtn','undoBtn'].forEach(id => $(id).disabled = true);
 };
 
 /* ---------- xuất file ---------- */

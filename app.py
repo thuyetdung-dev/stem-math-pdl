@@ -56,6 +56,33 @@ DIM_TO_SLOT_SUB = {"radius": "sub_radius", "diameter": "sub_radius",
                    "height": "sub_height", "length": "sub_extra"}
 
 
+REVISE_INSTRUCTION = """Bạn đang chỉnh sửa spec JSON của một hình minh họa Toán.
+Người dùng là giáo viên, họ sẽ mô tả bằng tiếng Việt điều cần sửa.
+
+Trả về DUY NHẤT spec JSON hoàn chỉnh sau khi sửa, giữ nguyên mọi trường không liên quan đến yêu cầu.
+
+Ngoài các trường sẵn có (topic, figures, character, badge, note, question), spec còn khoá "style":
+{
+  "theme": "yard" | "classroom" | "blank",   // sân vườn / lớp học / nền giấy kẻ ô để in
+  "palette": "color" | "print",              // in màu / in đen trắng
+  "angle": số từ 12 đến 50,                  // độ nghiêng góc nhìn, mặc định 30
+  "mirror": true | false,                    // đổi khối hình sang bên kia
+  "decor": true | false,                     // bật tắt cây cối trang trí
+  "character": "boy" | "girl"
+}
+
+Ví dụ cách hiểu yêu cầu:
+- "bỏ cây cối cho gọn" -> style.decor = false
+- "cho in đen trắng" -> style.palette = "print", style.theme = "blank"
+- "đổi thành bạn nữ" -> style.character = "girl"
+- "nhìn từ góc thấp hơn" -> style.angle = 20
+- "chuyển bể sang phải" -> style.mirror = true
+- "chiều cao phải là 1,5m" -> sửa figures[0].dims.height = "1,5m"
+- "bỏ nhân vật đi" -> character.enabled = false
+
+Không bịa thêm số đo mà giáo viên không nói. Không thêm lời giải thích ngoài JSON."""
+
+
 def resolve_key(payload):
     return (payload.get("api_key") or "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
 
@@ -242,12 +269,50 @@ def generate():
 
 @app.route("/api/rerender", methods=["POST"])
 def rerender():
-    """Dựng lại hình từ spec đã chỉnh tay, không tốn thêm lượt gọi Gemini."""
+    """Vẽ lại từ spec đã có: đổi biến thể trình bày hoặc sửa số đo. Không gọi Gemini."""
     payload = request.get_json(silent=True) or {}
+    spec = payload.get("spec") or {}
+
+    if payload.get("variant_index") is not None:
+        spec["style"] = renderer.variant(int(payload["variant_index"]))
+    if payload.get("style_override"):
+        spec["style"] = {**(spec.get("style") or {}), **payload["style_override"]}
+
     try:
-        return jsonify({"svg": renderer.render_scene(payload.get("spec") or {})})
+        return jsonify({"svg": renderer.render_scene(spec), "spec": spec,
+                        "variant_count": len(renderer.VARIANTS)})
     except Exception as exc:
         return jsonify({"error": f"Spec không hợp lệ: {exc}"}), 400
+
+
+@app.route("/api/revise", methods=["POST"])
+def revise():
+    """Giáo viên mô tả bằng lời điều cần sửa, Gemini cập nhật spec rồi vẽ lại."""
+    payload = request.get_json(silent=True) or {}
+    instruction = (payload.get("instruction") or "").strip()
+    spec = payload.get("spec")
+
+    if not instruction:
+        return jsonify({"error": "Hãy mô tả điều bạn muốn sửa, ví dụ: bỏ cây cối, đổi sang bạn nữ."}), 400
+    if not spec:
+        return jsonify({"error": "Chưa có hình nào để sửa. Tạo hình trước đã."}), 400
+    if not resolve_key(payload):
+        return jsonify({"error": "Chưa có API Key. Nhập key hoặc đặt biến môi trường GEMINI_API_KEY."}), 400
+
+    try:
+        genai.configure(api_key=resolve_key(payload))
+        model = genai.GenerativeModel(
+            model_name=pick_model((payload.get("model") or "").strip()),
+            system_instruction=REVISE_INSTRUCTION,
+            generation_config={"temperature": 0.1, "response_mime_type": "application/json"},
+        )
+        prompt = ("Spec hiện tại:\n" + json.dumps(spec, ensure_ascii=False)
+                  + "\n\nYêu cầu của giáo viên:\n" + instruction)
+        new_spec = extract_json(model.generate_content(prompt).text)
+        return jsonify({"svg": renderer.render_scene(new_spec), "spec": new_spec})
+    except Exception as exc:
+        print("LỖI SỬA HÌNH:", exc)
+        return jsonify({"error": f"Không sửa được: {exc}"}), 500
 
 
 @app.route("/api/proxy-image", methods=["POST"])
