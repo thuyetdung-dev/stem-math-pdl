@@ -1,5 +1,6 @@
 import os
 import urllib.parse
+import base64
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
@@ -38,9 +39,10 @@ def generate():
     math_problem = data.get('text') or ''
     selected_model = data.get('model') or 'gemini-1.5-flash-latest'
     user_api_key = data.get('api_key')
+    image_b64 = data.get('image_base64')
 
-    if not math_problem:
-        return jsonify({"error": "Máy chủ chưa nhận được chữ. Hãy nhập đề toán!"}), 400
+    if not math_problem and not image_b64:
+        return jsonify({"error": "Hãy nhập đề toán hoặc tải ảnh lên!"}), 400
 
     active_key = user_api_key if (user_api_key and user_api_key.strip() != "") else os.environ.get("GEMINI_API_KEY")
     
@@ -67,7 +69,19 @@ def generate():
             system_instruction=system_instruction
         )
         
-        response = model.generate_content(math_problem)
+        prompt_contents = []
+        if math_problem:
+            prompt_contents.append(math_problem)
+            
+        if image_b64:
+            mime_type, base64_data = image_b64.split(';base64,')
+            mime_type = mime_type.replace('data:', '')
+            prompt_contents.append({
+                'mime_type': mime_type,
+                'data': base64.b64decode(base64_data)
+            })
+        
+        response = model.generate_content(prompt_contents)
         prompt = response.text.strip()
         
         encoded_prompt = urllib.parse.quote(prompt)
